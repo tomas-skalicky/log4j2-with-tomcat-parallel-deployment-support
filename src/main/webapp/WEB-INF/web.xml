@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+	version="3.1">
+
+	<context-param>
+		<param-name>webAppRootKey</param-name>
+		<param-value>log4j2-with-bundle-properties.root</param-value>
+	</context-param>
+
+	<context-param>
+		<param-name>isLog4jAutoInitializationDisabled</param-name>
+		<param-value>true</param-value>
+	</context-param>
+
+	<!-- see http://logging.apache.org/log4j/2.x/manual/webapp.html -->
+	<context-param>
+		<param-name>log4jConfiguration</param-name>
+		<param-value>classpath:cz/skalicky/log4j2/withbundleproperties/log4j2-skalicky.xml</param-value>
+	</context-param>
+
+	<!-- NOTE: This listener must be registered before the log4j one!!! -->
+	<listener>
+		<listener-class>org.springframework.web.util.WebAppRootListener</listener-class>
+	</listener>
+
+	<listener>
+		<listener-class>org.apache.logging.log4j.web.Log4jServletContextListener</listener-class>
+	</listener>
+
+	<!-- Added because of the setup of isLog4jAutoInitializationDisabled to true -->
+	<!-- see http://logging.apache.org/log4j/2.x/manual/webapp.html -->
+	<filter>
+		<filter-name>log4jServletFilter</filter-name>
+		<filter-class>org.apache.logging.log4j.web.Log4jServletFilter</filter-class>
+	</filter>
+	<filter-mapping>
+		<filter-name>log4jServletFilter</filter-name>
+		<url-pattern>/*</url-pattern>
+		<dispatcher>REQUEST</dispatcher>
+		<dispatcher>FORWARD</dispatcher>
+		<dispatcher>INCLUDE</dispatcher>
+		<dispatcher>ERROR</dispatcher>
+		<dispatcher>ASYNC</dispatcher>
+		<!-- Servlet 3.0 w/ disabled auto-initialization only; not supported in 2.5 -->
+	</filter-mapping>
+
+</web-app>

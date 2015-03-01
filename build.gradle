@@ -1,0 +1,95 @@
+apply from: 'libraries.gradle'
+
+// Logging
+logging.captureStandardOutput LogLevel.WARN
+println 'A message which is logged at WARN level'
+
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+
+version = '0.0.1-SHAPSHOT'
+
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+}
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile libraries.logging
+    
+    // FIXME should be accessible only by compile time, not runtime (provided by servlet container) -> should not be added to artifacts
+    compile libraries.javax_servlet_api
+    
+    compile libraries.spring_web
+}
+
+task wrapper(type: Wrapper) {
+
+    // The distribution will be unpacked to the $USER_HOME/.gradle/gradle/dists
+    archiveBase = Wrapper.PathBase.GRADLE_USER_HOME
+    archivePath = 'gradle/dists'
+    distributionUrl = 'https://services.gradle.org/distributions/gradle-2.3-all.zip'
+}
+
+apply plugin: 'war'
+
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+def getParallelDeploymentTimestamp() {
+    final LocalDateTime now = LocalDateTime.now();
+    final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuuMMdd-HHmm");
+    return now.format(formatter)
+}
+
+ext {
+    parallelDeploymentTimestamp = getParallelDeploymentTimestamp()
+    parallelDeploymentClassifier = "##${parallelDeploymentTimestamp}"
+}
+
+war {
+    archiveName = "${baseName}${parallelDeploymentClassifier}.${extension}"
+}
+
+ext.basePackagePath = 'cz/skalicky/log4j2/withbundleproperties'
+
+task writeParallelDeploymentTimestampForLog4j2() {
+    ext.log4j2Properties = new File("${sourceSets.main.output.resourcesDir}/${basePackagePath}/log4j2.properties")
+        
+    doLast {
+        log4j2Properties.text = "appContextName=${parallelDeploymentTimestamp}"
+	}
+    
+    dependsOn compileJava
+}
+
+war.dependsOn writeParallelDeploymentTimestampForLog4j2
+
+ext {
+	catalinaBase = '/var/lib/tomcat8'
+	tomcatWebapps = "${catalinaBase}/webapps"
+}
+
+task updateWebAppRootKey(type: Exec) {
+    executable './updateWebAppRootKey.bash'
+    args "${buildDir}/libs/", "${war.archiveName}"
+}
+
+task deployOnLocalTomcat(type: Copy) {
+    println "Deployment: ${war.archivePath} -> ${tomcatWebapps}"
+    from war
+    into "${tomcatWebapps}"
+    
+    dependsOn war
+}

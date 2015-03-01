@@ -1,0 +1,18 @@
+ext {
+
+    log4jVersion = '2.1'
+    springVersion = '4.1.5.RELEASE'
+
+    libraries = [
+
+        logging           : [
+            "org.apache.logging.log4j:log4j-core:${log4jVersion}",
+            "org.apache.logging.log4j:log4j-web:${log4jVersion}",
+        ],
+        
+        javax_servlet_api : 'javax.servlet:javax.servlet-api:3.1.0',
+        
+        spring_web        : "org.springframework:spring-web:${springVersion}"
+
+    ]
+}
