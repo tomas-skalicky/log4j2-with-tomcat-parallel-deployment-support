@@ -56,34 +56,23 @@ def getParallelDeploymentTimestamp() {
 ext {
     parallelDeploymentTimestamp = getParallelDeploymentTimestamp()
     parallelDeploymentClassifier = "##${parallelDeploymentTimestamp}"
+    archiveNameWithClassifier = "${war.baseName}${parallelDeploymentClassifier}"
 }
 
 war {
-    archiveName = "${baseName}${parallelDeploymentClassifier}.${extension}"
+    archiveName = "${archiveNameWithClassifier}.${extension}"
+    filesMatching('**/web.xml', { file ->
+        println "ananas" + file
+    })
+    filesMatching('**/log4j2-skalicky.xml', { file ->
+        println "banana" + file
+    })
+    eachFile {file -> println file}
 }
-
-ext.basePackagePath = 'cz/skalicky/log4j2/withbundleproperties'
-
-task writeParallelDeploymentTimestampForLog4j2() {
-    ext.log4j2Properties = new File("${sourceSets.main.output.resourcesDir}/${basePackagePath}/log4j2.properties")
-        
-    doLast {
-        log4j2Properties.text = "appContextName=${parallelDeploymentTimestamp}"
-	}
-    
-    dependsOn compileJava
-}
-
-war.dependsOn writeParallelDeploymentTimestampForLog4j2
 
 ext {
 	catalinaBase = '/var/lib/tomcat8'
 	tomcatWebapps = "${catalinaBase}/webapps"
-}
-
-task updateWebAppRootKey(type: Exec) {
-    executable './updateWebAppRootKey.bash'
-    args "${buildDir}/libs/", "${war.archiveName}"
 }
 
 task deployOnLocalTomcat(type: Copy) {
