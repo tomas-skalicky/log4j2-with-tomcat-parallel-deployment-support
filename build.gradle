@@ -56,18 +56,113 @@ def getParallelDeploymentTimestamp() {
 ext {
     parallelDeploymentTimestamp = getParallelDeploymentTimestamp()
     parallelDeploymentClassifier = "##${parallelDeploymentTimestamp}"
+    webAppRootKey = "${war.baseName}.${parallelDeploymentTimestamp}.root"
     archiveNameWithClassifier = "${war.baseName}${parallelDeploymentClassifier}"
+}
+
+ext {
+    tmpScriptsPath = "${buildDir}/tmp/scripts"
+    webXmlXslFilePath = "${tmpScriptsPath}/update_webAppRootKey_in_web_descriptor.xsl"
+    mustBeChangedDir = "${projectDir}/src/main/must_be_changed_due_to_parallel_deployment"
+    webXmlFileName = 'web.xml'
+    originalWebXmlFilePath = "${mustBeChangedDir}/${webXmlFileName}"
+    generatedForWarDir = "${buildDir}/generated-for-war"
+    generatedWebXmlFilePath = "${generatedForWarDir}/WEB-INF/${webXmlFileName}"
+}
+
+task generateXslFileForWebXml() << {
+	mkdir("${tmpScriptsPath}")
+	def xslFile = new File("${webXmlXslFilePath}")
+	xslFile.text = new StringBuilder()
+		.append('<?xml version="1.0" encoding="UTF-8"?>')
+		.append('<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" ')
+ 		.append('    xmlns:web="http://xmlns.jcp.org/xml/ns/javaee">')
+		.append('')
+		.append('	<xsl:output method="xml" indent="yes" />')
+		.append('')
+		.append('	<!-- Copy with recursion -->')
+		.append('	<xsl:template match="@*|*|text()|comment()|processing-instruction()">')
+		.append('		<xsl:copy>')
+		.append('			<xsl:apply-templates select="@*|*|text()|comment()|processing-instruction()" />')
+		.append('		</xsl:copy>')
+		.append('	</xsl:template>')
+		.append('')
+		.append('	<xsl:template match="web:context-param[web:param-name/text() = \'webAppRootKey\']">')
+		.append('		<web:context-param>')
+		.append('			<web:param-name><xsl:value-of select="./web:param-name"/></web:param-name>')
+		.append("			<web:param-value>${webAppRootKey}</web:param-value>")
+		.append('		</web:context-param>')
+		.append('	</xsl:template>')
+		.append('')
+		.append('</xsl:stylesheet>')
+		.toString()
+}
+
+ext {
+    log4jXmlXslFilePath = "${tmpScriptsPath}/update_webAppRootKey_in_log4j_xml.xsl"
+    log4jXmlFileName = 'log4j2-skalicky.xml'
+    originalLog4jXmlFilePath = "${mustBeChangedDir}/${log4jXmlFileName}"
+    generatedLog4jXmlFilePath = "${generatedForWarDir}/WEB-INF/classes/cz/skalicky/log4j2/withbundleproperties/${log4jXmlFileName}"
+}
+
+task generateXslFileForLog4jXml() << {
+	mkdir("${tmpScriptsPath}")
+	def xslFile = new File("${log4jXmlXslFilePath}")
+	xslFile.text = new StringBuilder()
+		.append('<?xml version="1.0" encoding="UTF-8"?>')
+		.append('<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">')
+		.append('')
+		.append('	<xsl:output method="xml" indent="yes" />')
+		.append('')
+		.append('	<!-- Copy with recursion -->')
+		.append('	<xsl:template match="@*|*|text()|comment()|processing-instruction()">')
+		.append('		<xsl:copy>')
+		.append('			<xsl:apply-templates select="@*|*|text()|comment()|processing-instruction()" />')
+		.append('		</xsl:copy>')
+		.append('	</xsl:template>')
+		.append('')
+		.append('	<xsl:template match="Property[@name = \'fileBaseFolder\']">')
+		.append('		<Property name="fileBaseFolder">')
+		.append('			<xsl:text>${sys:')
+		.append("${webAppRootKey}")
+		.append('}')
+		.append("/../../logs/${war.baseName}/${parallelDeploymentTimestamp}</xsl:text>")
+		.append('		</Property>')
+		.append('	</xsl:template>')
+		.append('')
+		.append('</xsl:stylesheet>')
+		.toString()
+}
+
+task modifyWebAppRootKey() {
+	doLast {
+		ant {
+			xslt(
+				style: "${webXmlXslFilePath}",
+				in: "${originalWebXmlFilePath}",
+				out: "${generatedWebXmlFilePath}",
+				force: 'true'
+			)
+		}
+		ant {
+			xslt(
+				style: "${log4jXmlXslFilePath}",
+				in: "${originalLog4jXmlFilePath}",
+				out: "${generatedLog4jXmlFilePath}",
+				force: 'true'
+			)
+		}
+	}
+	
+	dependsOn generateXslFileForWebXml, generateXslFileForLog4jXml
 }
 
 war {
     archiveName = "${archiveNameWithClassifier}.${extension}"
-    filesMatching('**/web.xml', { file ->
-        println "ananas" + file
-    })
-    filesMatching('**/log4j2-skalicky.xml', { file ->
-        println "banana" + file
-    })
-    eachFile {file -> println file}
+    
+    from("${generatedForWarDir}")
+    
+    dependsOn modifyWebAppRootKey
 }
 
 ext {
